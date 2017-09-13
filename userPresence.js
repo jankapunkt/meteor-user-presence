@@ -14,19 +14,26 @@ UserPresenceServers._ensureIndex({serverId:1});
 Meteor.users._ensureIndex({'presence.serverId':1});
 UserPresenceSessions._ensureIndex({userId:1});
 
+
+
 // keep track of which servers are online
-Meteor.setInterval(function() {
-  let find = {serverId:serverId};
+var trackServer = function(id) {
+  let find = {serverId:id};
   let modifier = {$set: {ping:new Date()}};
   UserPresenceServers.upsert(find, modifier);
+};
+
+Meteor.setInterval(function () {
+	trackServer(serverId);
 }, 1000 * 30);
+
 
 
 // remove old servers and sessions
 // update status of users connected to that server
-Meteor.setInterval(function() {
+var updateStatus = function(cutoffValue) {
   let cutoff = new Date();
-  cutoff.setMinutes(new Date().getMinutes() - 5);
+  cutoff.setMinutes(new Date().getMinutes() - cutoffValue);
   UserPresenceServers.find({ping: {$lt:cutoff}}).forEach(function(server) {
     UserPresenceServers.remove(server._id);
     UserPresenceSessions.remove({serverId:server.serverId});
@@ -34,6 +41,10 @@ Meteor.setInterval(function() {
       trackUserStatus(user._id);
     })
   })
+};
+
+Meteor.setInterval(function () {
+	updateStatus(5)
 }, 1000 * 10);
 
 
@@ -97,4 +108,6 @@ if (Meteor.isDevelopment) {
   UserPresenceHelpers.userConnected = userConnected;
   UserPresenceHelpers.userDisconnected = userDisconnected;
   UserPresenceHelpers.trackUserStatus = trackUserStatus;
+  UserPresenceHelpers.trackServer = trackServer;
+  UserPresenceHelpers.updateStatus = updateStatus;
 }

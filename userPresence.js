@@ -14,7 +14,6 @@ UserPresenceServers._ensureIndex({serverId:1});
 Meteor.users._ensureIndex({'presence.serverId':1});
 UserPresenceSessions._ensureIndex({userId:1});
 
-
 // keep track of which servers are online
 Meteor.setInterval(function() {
   let find = {serverId:serverId};
@@ -90,4 +89,12 @@ var trackUserStatus = function(userId, connection) {
   }
 
   Meteor.users.update(userId, {$set: {presence:presence}});
+}
+
+//Helpers for testing / dev
+UserPresenceHelpers = {};
+if (Meteor.isDevelopment) {
+  UserPresenceHelpers.userConnected = userConnected;
+  UserPresenceHelpers.userDisconnected = userDisconnected;
+  UserPresenceHelpers.trackUserStatus = trackUserStatus;
 }

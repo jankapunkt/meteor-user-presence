@@ -16,6 +16,9 @@ UserPresenceSessions._ensureIndex({userId:1});
 
 
 
+var trackServerInterval = 30;
+var trackServerIntervalId;
+
 // keep track of which servers are online
 var trackServer = function(id) {
   let find = {serverId:id};
@@ -23,11 +26,25 @@ var trackServer = function(id) {
   UserPresenceServers.upsert(find, modifier);
 };
 
-Meteor.setInterval(function () {
-	trackServer(serverId);
-}, 1000 * 30);
+var setTrackServerInterval = function (value) {
+  if (!value || value < 0) throw new Error("Unsupported value:"+value);
+  if (trackServerIntervalId) {
+    Meteor.clearInterval(trackServerIntervalId);
+  }
+  trackServerInterval = value;
+  trackServerIntervalId = Meteor.setInterval(function () {
+    trackServer(serverId);
+  }, 1000 * trackServerInterval);
+};
+
+// set the default
+setTrackServerInterval(trackServerInterval);
 
 
+
+var updateStatusCutoff = 5;
+var updateStatusInterval = 10;
+var updateStatusIntervalId;
 
 // remove old servers and sessions
 // update status of users connected to that server
@@ -43,9 +60,19 @@ var updateStatus = function(cutoffValue) {
   })
 };
 
-Meteor.setInterval(function () {
-	updateStatus(5)
-}, 1000 * 10);
+var setUpdateStatusInterval = function (value) {
+  if (!value || value < 0) throw new Error("Unsupported value:"+value);
+  if (updateStatusIntervalId) {
+    Meteor.clearInterval(updateStatusIntervalId);
+  }
+  updateStatusInterval = value;
+  updateStatusIntervalId = Meteor.setInterval(function () {
+    updateStatus(updateStatusCutoff)
+  }, 1000 * updateStatusInterval);
+};
+
+// set the defaul
+setUpdateStatusInterval(updateStatusInterval);
 
 
 
@@ -111,3 +138,19 @@ if (Meteor.isDevelopment) {
   UserPresenceHelpers.trackServer = trackServer;
   UserPresenceHelpers.updateStatus = updateStatus;
 }
+
+UserPresenceHelpers.setTrackServerInterval = setTrackServerInterval;
+UserPresenceHelpers.trackServerInterval = function(){
+	return {
+		value:trackServerInterval,
+		id:trackServerIntervalId
+	};
+};
+
+UserPresenceHelpers.setUpdateStatusInterval = setUpdateStatusInterval;
+UserPresenceHelpers.updateStatusInterval = function(){
+	return {
+		value:updateStatusInterval,
+		id:updateStatusIntervalId
+	};
+};

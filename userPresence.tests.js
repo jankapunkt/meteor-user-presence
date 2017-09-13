@@ -148,6 +148,59 @@ describe('User Presence', function () {
 			isOnline(userId, false);
 			done();
 		});
+
+		it ("trackServerInterval", function () {
+			// get defualt values
+			const currentInterval = UserPresenceHelpers.trackServerInterval();
+			exists(currentInterval.id);
+			assert.equal(currentInterval.value, 30);
+
+			// change values
+			UserPresenceHelpers.setTrackServerInterval(1);
+			const newInterval = UserPresenceHelpers.trackServerInterval();
+			exists(newInterval.id);
+			assert.notEqual(newInterval.id, currentInterval.id);
+			assert.notEqual(newInterval.value, currentInterval.value);
+
+			assert.throws(function () {
+				UserPresenceHelpers.setTrackServerInterval(0);
+			});
+
+			assert.throws(function () {
+				UserPresenceHelpers.setTrackServerInterval(-1);
+			});
+
+			assert.throws(function () {
+				UserPresenceHelpers.setTrackServerInterval();
+			})
+		});
+
+		it ("updateStatusInterval", function () {
+			// get default values
+			const currentInterval = UserPresenceHelpers.updateStatusInterval();
+			exists(currentInterval.id);
+			assert.equal(currentInterval.value, 10);
+
+			// change values
+			UserPresenceHelpers.setUpdateStatusInterval(1);
+			const newInterval = UserPresenceHelpers.updateStatusInterval();
+			exists(newInterval.id);
+			assert.notEqual(newInterval.id, currentInterval.id);
+			assert.notEqual(newInterval.value, currentInterval.value);
+
+
+			assert.throws(function () {
+				UserPresenceHelpers.setUpdateStatusInterval(0);
+			});
+
+			assert.throws(function () {
+				UserPresenceHelpers.setUpdateStatusInterval(-1);
+			});
+
+			assert.throws(function () {
+				UserPresenceHelpers.setUpdateStatusInterval();
+			})
+		});
 	});
 
 	describe("Core Functionality", function () {

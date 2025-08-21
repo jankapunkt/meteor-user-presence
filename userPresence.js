@@ -1,114 +1,99 @@
-// serverId - unique per server per restart
-var serverId = Random.id();
+import { Random } from 'meteor/random';
 
+// serverId - unique per server per restart
+const serverId = Random.id();
 
 // user connections
-UserPresenceSessions = new Mongo.Collection('userpresencesessions');
+export const UserPresenceSessions = new Mongo.Collection('userpresencesessions');
 
 // list of servers
-UserPresenceServers = new Mongo.Collection('userpresenceservers');
+export const UserPresenceServers = new Mongo.Collection('userpresenceservers');
 
-
-UserPresenceServers._ensureIndex({ping:1});
-UserPresenceServers._ensureIndex({serverId:1});
-Meteor.users._ensureIndex({'presence.serverId':1});
-UserPresenceSessions._ensureIndex({userId:1});
-
-
-
-var trackServerInterval = 30;
-var trackServerIntervalId;
+let trackServerInterval = 30;
+let trackServerIntervalId;
 
 // keep track of which servers are online
-var trackServer = function(id) {
-  let find = {serverId:id};
-  let modifier = {$set: {ping:new Date()}};
-  UserPresenceServers.upsert(find, modifier);
+const trackServer = async (id) => {
+  let find = { serverId: id };
+  let modifier = { $set: { ping: new Date() } };
+  await UserPresenceServers.upsertAsync(find, modifier);
 };
 
-var setTrackServerInterval = function (value) {
-  if (!value || value < 0) throw new Error("Unsupported value:"+value);
+const setTrackServerInterval = (value) => {
+  if (!value || value < 0) {
+    throw new Error("Unsupported value:" + value);
+  }
   if (trackServerIntervalId) {
     Meteor.clearInterval(trackServerIntervalId);
   }
   trackServerInterval = value;
-  trackServerIntervalId = Meteor.setInterval(function () {
-    trackServer(serverId);
+  trackServerIntervalId = Meteor.setInterval(async () => {
+    await trackServer(serverId);
   }, 1000 * trackServerInterval);
 };
 
-// set the default
-setTrackServerInterval(trackServerInterval);
-
-
-
-var updateStatusCutoff = 5;
-var updateStatusInterval = 10;
-var updateStatusIntervalId;
+let updateStatusCutoff = 5;
+let updateStatusInterval = 10;
+let updateStatusIntervalId;
 
 // remove old servers and sessions
 // update status of users connected to that server
-var updateStatus = function(cutoffValue) {
+const updateStatus = async (cutoffValue) => {
   let cutoff = new Date();
   cutoff.setMinutes(new Date().getMinutes() - cutoffValue);
-  UserPresenceServers.find({ping: {$lt:cutoff}}).forEach(function(server) {
-    UserPresenceServers.remove(server._id);
-    UserPresenceSessions.remove({serverId:server.serverId});
-    Meteor.users.find({'presence.serverId':server.serverId}).forEach(function(user) {
-      trackUserStatus(user._id);
-    })
-  })
+  const servers = await UserPresenceServers.find({
+    ping: { $lt: cutoff }
+  }, {
+    fields: { _id: 1, serverId: 1 }
+  }).fetchAsync()
+
+  for (const server of servers) {
+    await UserPresenceServers.removeAsync(server._id);
+    await UserPresenceSessions.removeAsync({ serverId: server.serverId });
+  }
+
+  const serverIds = [...new Set(servers.map(server => server.serverId))];
+  const users = await Meteor.users.find({
+    'presence.serverId': { $in: serverIds }
+  }, {
+    fields: { _id: 1 }
+  }).fetchAsync();
+
+  for (const user of users) {
+    await trackUserStatus(user._id);
+  }
 };
 
-var setUpdateStatusInterval = function (value) {
-  if (!value || value < 0) throw new Error("Unsupported value:"+value);
+const setUpdateStatusInterval = (value) => {
+  if (!value || value < 0) {
+    throw new Error("Unsupported value:" + value);
+  }
   if (updateStatusIntervalId) {
     Meteor.clearInterval(updateStatusIntervalId);
   }
   updateStatusInterval = value;
-  updateStatusIntervalId = Meteor.setInterval(function () {
-    updateStatus(updateStatusCutoff)
+  updateStatusIntervalId = Meteor.setInterval(async () => {
+    await updateStatus(updateStatusCutoff)
   }, 1000 * updateStatusInterval);
 };
 
-// set the defaul
-setUpdateStatusInterval(updateStatusInterval);
-
-
-
-// track user connection and disconnection
-Meteor.publish(null, function(){
-  var self = this;
-
-  if(self.userId && self.connection && self.connection.id){
-    userConnected(self.userId, self.connection);
-
-    self.onStop(function(){
-      userDisconnected(self.userId, self.connection);
-    });
-  }
-
-  self.ready();
-});
-
-
-
-var userConnected = function(userId, connection) {
-  UserPresenceSessions.insert({serverId:serverId, userId:userId, connectionId:connection.id, createdAt:new Date()});
-  trackUserStatus(userId, connection);
+const userConnected = async (userId, connection) => {
+  await UserPresenceSessions.insertAsync({
+    serverId: serverId,
+    userId: userId,
+    connectionId: connection.id,
+    createdAt: new Date()
+  });
+  await trackUserStatus(userId, connection);
 }
 
-
-
-var userDisconnected = function(userId, connection) {
-  UserPresenceSessions.remove({userId:userId, connectionId:connection.id});
-  trackUserStatus(userId, connection);
+const userDisconnected = async (userId, connection) => {
+  await UserPresenceSessions.removeAsync({ userId: userId, connectionId: connection.id });
+  await trackUserStatus(userId, connection);
 }
 
-
-
-var trackUserStatus = function(userId, connection) {
-  let presence = {
+const trackUserStatus = async (userId, connection) => {
+  const presence = {
     updatedAt: new Date(),
     serverId: serverId
   }
@@ -118,19 +103,16 @@ var trackUserStatus = function(userId, connection) {
     presence.httpHeaders = connection.httpHeaders;
   }
 
-  let isOnline = UserPresenceSessions.find({userId:userId}).count();
+  const isOnline = await UserPresenceSessions.countDocuments({ userId });
+  presence.status = isOnline
+    ? 'online'
+    : 'offline';
 
-  if (isOnline) {
-    presence.status = 'online';
-  } else {
-    presence.status = 'offline';
-  }
-
-  Meteor.users.update(userId, {$set: {presence:presence}});
+  await Meteor.users.updateAsync(userId, { $set: { presence: presence } });
 }
 
 //Helpers for testing / dev
-UserPresenceHelpers = {};
+export const UserPresenceHelpers = {};
 if (Meteor.isDevelopment) {
   UserPresenceHelpers.userConnected = userConnected;
   UserPresenceHelpers.userDisconnected = userDisconnected;
@@ -140,17 +122,38 @@ if (Meteor.isDevelopment) {
 }
 
 UserPresenceHelpers.setTrackServerInterval = setTrackServerInterval;
-UserPresenceHelpers.trackServerInterval = function(){
-	return {
-		value:trackServerInterval,
-		id:trackServerIntervalId
-	};
-};
+UserPresenceHelpers.trackServerInterval = () => ({
+  value: trackServerInterval,
+  id: trackServerIntervalId
+});
 
 UserPresenceHelpers.setUpdateStatusInterval = setUpdateStatusInterval;
-UserPresenceHelpers.updateStatusInterval = function(){
-	return {
-		value:updateStatusInterval,
-		id:updateStatusIntervalId
-	};
-};
+UserPresenceHelpers.updateStatusInterval = () => ({
+  value: updateStatusInterval,
+  id: updateStatusIntervalId
+});
+
+export const initUserPresence = async () => {
+  await UserPresenceServers.ensureIndexAsync({ ping: 1 });
+  await UserPresenceServers.ensureIndexAsync({ serverId: 1 });
+  await Meteor.users.ensureIndexAsync({ 'presence.serverId': 1 });
+  await UserPresenceSessions.ensureIndexAsync({ userId: 1 });
+  // set the default
+  setTrackServerInterval(trackServerInterval);
+  // set the default
+  setUpdateStatusInterval(updateStatusInterval);
+  // track user connection and disconnection
+  Meteor.publish(null, async function () {
+    const self = this;
+
+    if (self.userId && self.connection && self.connection.id) {
+      await userConnected(self.userId, self.connection);
+
+      self.onStop(function () {
+        userDisconnected(self.userId, self.connection);
+      });
+    }
+
+    self.ready();
+  });
+}

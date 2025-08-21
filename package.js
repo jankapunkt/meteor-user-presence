@@ -1,39 +1,37 @@
 Package.describe({
-  name: 'danimal:userpresence',
-  version: '1.1.0',
+  name: 'jkuester:userpresence',
+  version: '2.0.0',
   summary: 'Track user online status across multiple servers.',
   git: 'https://github.com/dan335/meteor-user-presence',
   documentation: 'README.md'
 });
 
-Package.onUse(function(api) {
-  api.versionsFrom('1.2');
+Package.onUse(function (api) {
+  api.versionsFrom(['1.3', '2.3', '3.0.1']);
   api.use([
     'ecmascript',
     'mongo',
     'random'
   ]);
-  api.addFiles('userPresence.js', 'server');
-  api.export([
-    'UserPresenceSessions',
-    'UserPresenceServers',
-    'UserPresenceHelpers',
-  ], 'server');
+
+  api.mainModule('userPresence.js', 'server');
 });
 
 Package.onTest(function (api) {
-
+  Npm.depends({
+    'chai': '5.1.1',
+  })
+  api.versionsFrom(['1.3', '2.3', '3.0.1']);
   api.use([
-    'meteor',
     'ecmascript',
     'mongo',
     'random',
-	'accounts-base',
-	'accounts-password',
-    'johanbrook:publication-collector',
+    'accounts-base',
+    'accounts-password',
+    'meteortesting:mocha',
+    'communitypackages:publication-collector',
     'dburles:mongo-collection-instances',
-    'practicalmeteor:chai',
-    'danimal:userpresence',
+    'jkuester:userpresence'
   ]);
   api.mainModule('userPresence.tests.js', 'server');
 });
